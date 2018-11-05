@@ -4563,6 +4563,12 @@ public final class Settings {
         private static final Validator OMNI_LONG_PRESS_POWER_TORCH_VALIDATOR =
                 BOOLEAN_VALIDATOR;
 
+        /*
+         * Whether to use smart clock or not
+         * @hide
+         */
+        public static final String SMART_CLOCK_ENABLE = "smart_clock_enable";
+
         /**
          * hide the media metadata as wallpaper on lockscreen
          * @hide
