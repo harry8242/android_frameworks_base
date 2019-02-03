@@ -21,12 +21,7 @@ import static android.app.StatusBarManager.DISABLE_SYSTEM_INFO;
 import android.annotation.Nullable;
 import android.app.Fragment;
 import android.app.StatusBarManager;
-import android.database.ContentObserver;
-import android.net.Uri;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.UserHandle;
-import android.provider.Settings;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -45,8 +40,6 @@ import com.android.systemui.statusbar.policy.EncryptionHelper;
 import com.android.systemui.statusbar.policy.KeyguardMonitor;
 import com.android.systemui.statusbar.policy.NetworkController;
 import com.android.systemui.statusbar.policy.NetworkController.SignalCallback;
-
-import java.lang.Runnable;
 
 /**
  * Contains the collapsed status bar and handles hiding/showing based on disable flags
@@ -70,11 +63,6 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
     private StatusBar mStatusBarComponent;
     private DarkIconManager mDarkIconManager;
     private View mOperatorNameFrame;
-    private Handler smartClockHandler = new Handler();
-    private Handler mHandler = new Handler();
-    private static final int HIDE_DURATION = 60*1000; // 1 minute
-    private static final int SHOW_DURATION = 5*1000; // 5 seconds
-    private boolean useSmartClock = false;
 
     private SignalCallback mSignalCallback = new SignalCallback() {
         @Override
@@ -89,9 +77,6 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
         mKeyguardMonitor = Dependency.get(KeyguardMonitor.class);
         mNetworkController = Dependency.get(NetworkController.class);
         mStatusBarComponent = SysUiServiceProvider.getComponent(getContext(), StatusBar.class);
-        SettingsObserver settingsObserver = new SettingsObserver(mHandler);
-        settingsObserver.observe();
-        updateSmartClockStatus();
     }
 
     @Override
@@ -116,7 +101,6 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
         showClock(false);
         initEmergencyCryptkeeperText();
         initOperatorName();
-        setupSmartClock();
     }
 
     @Override
@@ -127,14 +111,12 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
 
     @Override
     public void onResume() {
-        setupSmartClock();
         super.onResume();
         SysUiServiceProvider.getComponent(getContext(), CommandQueue.class).addCallbacks(this);
     }
 
     @Override
     public void onPause() {
-        disableSmartClock();
         super.onPause();
         SysUiServiceProvider.getComponent(getContext(), CommandQueue.class).removeCallbacks(this);
     }
@@ -190,7 +172,7 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
             if ((state1 & DISABLE_CLOCK) != 0) {
                 hideClock(animate);
             } else {
-                displaySmartClock(animate);
+                showClock(animate);
             }
         }
     }
@@ -349,59 +331,6 @@ public class CollapsedStatusBarFragment extends Fragment implements CommandQueue
         if (getResources().getBoolean(R.bool.config_showOperatorNameInStatusBar)) {
             ViewStub stub = mStatusBar.findViewById(R.id.operator_name);
             mOperatorNameFrame = stub.inflate();
-        }
-    }
-
-    private void setupSmartClock() {
-        if (useSmartClock) {
-            displaySmartClock(true);
-            smartClockHandler.postDelayed(()->setupSmartClock(), HIDE_DURATION);
-        }
-    }
-
-    private void displaySmartClock(boolean animate) {
-        showClock(animate);
-        if (useSmartClock) {
-            mHandler.postDelayed(()->hideClock(true), SHOW_DURATION);
-        }
-    }
-
-    private void disableSmartClock() {
-        try {
-            smartClockHandler.removeCallbacksAndMessages(null);
-        } catch (NullPointerException e) {
-            // Do nothing
-        }
-    }
-
-    private void updateSmartClockStatus() {
-        useSmartClock = (Settings.System.getIntForUser(getContext().getContentResolver(),
-                Settings.System.SMART_CLOCK_ENABLE, 0,
-                UserHandle.USER_CURRENT) == 1);
-    }
-
-    private class SettingsObserver extends ContentObserver {
-        SettingsObserver(Handler handler) {
-            super(handler);
-        }
-
-        void observe() {
-            getContext().getContentResolver().registerContentObserver(Settings.System
-                    .getUriFor(Settings.System.SMART_CLOCK_ENABLE), false,
-                    this, UserHandle.USER_ALL);
-        }
-
-        @Override
-        public void onChange(boolean selfChange, Uri uri) {
-            if (uri.equals(Settings.System.getUriFor(Settings.System.SMART_CLOCK_ENABLE))) {
-                updateSmartClockStatus();
-                if (useSmartClock) {
-                    setupSmartClock();
-                } else {
-                    disableSmartClock();
-                    showClock(true);
-                }
-            }
         }
     }
 }
